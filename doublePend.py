@@ -99,4 +99,4 @@ def main_game(m1, m2, m3, l1, l2, l3, initialTheta1, initialTheta2, initialTheta
 
 while True:
     #main_game(5, 0.5, 1, 1, math.pi/2, math.pi/2, 0, 0)
-    main_game(5, 1, 1, 1, 1, 1, math.pi/2, 0, 0, 0, 0, 0)
+    main_game(1, 1, 1, 1, 1, 1, math.pi/2, 0, 0, 0, 0, 0)
