@@ -1,53 +1,89 @@
-from random import getrandbits
 import pygame
 from pygame.locals import *
 import math
 
 var_escape = False
-global stretchColor
 g = 10
 scale = 50
+timescale = 1
+trailLength = 100
+trailDropoff = 0.9
+
 
 pygame.init()
 window = pygame.display.set_mode((600, 600))
-window.fill((255, 255, 0))
+window.fill((255, 255, 255))
 
-def clamp(n, smallest, largest):
-    return max(smallest, min(n, largest))
-
-
-def drawPendulums(theta1, theta2, l1, l2, hinge, scale):
-    #Drawing arms along with scaling factor
-    pygame.draw.line(window, (0,0,0), [hinge[0], hinge[1]], [hinge[0]+math.sin(theta1)*l1*scale, hinge[1]+math.cos(theta1)*l1*scale])
-    pygame.draw.line(window, (0,0,0), [hinge[0]+math.sin(theta1)*l1*scale, hinge[1]+math.cos(theta1)*l1*scale], [hinge[0]+math.sin(theta1)*l1*scale + math.sin(theta2)*l2*scale, hinge[1]+math.cos(theta1)*l1*scale + math.cos(theta2)*l2*scale])
-
-    #Drawing balls at ends of arms
-    pygame.draw.circle(window, (0,0,0), [hinge[0]+math.sin(theta1)*l1*scale, hinge[1]+math.cos(theta1)*l1*scale], 3)
-    pygame.draw.circle(window, (0,0,0), [hinge[0]+math.sin(theta1)*l1*scale + math.sin(theta2)*l2*scale, hinge[1]+math.cos(theta1)*l1*scale + math.cos(theta2)*l2*scale], 3)
+class doublePendulum:
 
 
-def getTheta1Accel(m1, m2, l1, l2, theta1, theta2, dtheta1, dtheta2, g):
-    theta1Accel = (-m2*math.cos(theta1-theta2)*l1*(dtheta1**2)*math.sin(theta1-theta2)+m2*math.cos(theta1-theta2)*g*math.sin(theta2)-m2*l2*(dtheta2**2)*math.sin(theta1-theta2)-(m1+m2)*g*math.sin(theta1))/(l1*(m1+m2)-m2*(math.cos(theta1-theta2))**2)
-    return theta1Accel
 
-def getTheta2Accel(m1, m2, l1, l2, theta1, theta2, dtheta1, dtheta2, g):
-    theta2Accel = ((m1+m2)*(l1*(dtheta1**2)*math.sin(theta1-theta2)+(((dtheta2**2)*math.sin(theta1-theta2)*math.cos(theta1-theta2)*m2*l2)/(m1+m2))+math.cos(theta1-theta2)*g*math.sin(theta1)-g*math.sin(theta2)))    /   (l2*(m1+m2*(math.sin(theta1-theta1))**2))
-    return theta2Accel
+    def __init__(self, origin, l1, l2, m1, m2, initialTheta1, initialTheta2, initialDTheta1, initialDTheta2):
+        self.origin = origin
+        self.l1 = l1
+        self.l2 = l2
+        self.m1 = m1
+        self.m2 = m2
+        self.theta1 = initialTheta1
+        self.theta2 = initialTheta2
+        self.dTheta1 = initialDTheta1
+        self.dTheta2 = initialDTheta2
+        self.theta1Accel = 0
+        self.theta2Accel = 0
+        self.lastNPts = []
 
-def main_game(m1, m2, l1, l2, initialTheta1, initialTheta2, initialDTheta1, initialDTheta2):
-    
+    def calculatePts(self, timestep):
+        self.theta1Accel = (-self.m2*math.cos(self.theta1-self.theta2)*self.l1*(self.dTheta1**2)*math.sin(self.theta1-self.theta2)+self.m2*math.cos(self.theta1-self.theta2)*g*math.sin(self.theta2)-self.m2*self.l2*(self.dTheta2**2)*math.sin(self.theta1-self.theta2)-(self.m1+self.m2)*g*math.sin(self.theta1))/(self.l1*(self.m1+self.m2)-self.m2*(math.cos(self.theta1-self.theta2))**2)
+        self.theta2Accel = ((self.m1+self.m2)*(self.l1*(self.dTheta1**2)*math.sin(self.theta1-self.theta2)+(((self.dTheta2**2)*math.sin(self.theta1-self.theta2)*math.cos(self.theta1-self.theta2)*self.m2*self.l2)/(self.m1+self.m2))+math.cos(self.theta1-self.theta2)*g*math.sin(self.theta1)-g*math.sin(self.theta2)))    /   (self.l2*(self.m1+self.m2*(math.sin(self.theta1-self.theta2))**2))
 
-    """angularSpeed = idt
-    rSpeed = idr
-    theta = it
-    r = ir"""
+        self.dTheta1 = self.dTheta1 + self.theta1Accel * timestep
+        self.dTheta2 = self.dTheta2 + self.theta2Accel * timestep
 
-    theta1 = initialTheta1
-    theta2 = initialTheta2
-    dTheta1 = initialDTheta1
-    dTheta2 = initialDTheta2
+        self.theta1 = self.theta1 + self.dTheta1 * timestep
+        self.theta2 = self.theta2 + self.dTheta2 * timestep
 
-    FPS = 60
+        self.firstPt = [self.origin[0]+math.sin(self.theta1)*self.l1*scale, self.origin[1]+math.cos(self.theta1)*self.l1*scale]
+        self.secondPt = [self.firstPt[0] + math.sin(self.theta2)*self.l1*scale, self.firstPt[1] + math.cos(self.theta2)*self.l2*scale]
+        
+        if len(self.lastNPts) < trailLength:
+            self.lastNPts.append(self.secondPt)
+        elif len(self.lastNPts) == trailLength:
+            self.lastNPts.pop(0)
+            self.lastNPts.append(self.secondPt)
+
+
+def drawPendulums(pendulum):
+    pygame.draw.line(window, (0,0,0), pendulum.origin, pendulum.firstPt)
+    pygame.draw.line(window, (0,0,0), pendulum.firstPt, pendulum.secondPt)
+
+    pygame.draw.circle(window, (0,0,0), pendulum.firstPt, 4)
+    pygame.draw.circle(window, (0,0,0), pendulum.secondPt, 4)
+
+
+def drawTrail(pendulum):
+    #index = 0
+
+    for i in pendulum.lastNPts:
+        """index+=1
+        #opacity = 255-255/(len(pendulum.lastNPts)/(pendulum.lastNPts.index(i)+1))
+        if index >= round((1-trailDropoff)*len(pendulum.lastNPts)):
+            opacity = 1.0
+        else:
+            opacity = (index/(len(pendulum.lastNPts)*(1-trailDropoff)))"""
+
+        
+        if pendulum.lastNPts.index(i) < len(pendulum.lastNPts)-1:
+            #pygame.draw.line(window, (255,255-opacity*255,255-opacity*255), i, pendulum.lastNPts[pendulum.lastNPts.index(i)+1], 2)
+            pygame.draw.line(window, (255,0,0), i, pendulum.lastNPts[pendulum.lastNPts.index(i)+1], 2)      
+        else:
+            continue
+
+
+def main_game():  
+
+    firstPend = doublePendulum((300,300), 1, 1, 5, 1, math.pi/2, math.pi, 0, 0)
+
+    FPS = 62
     clock = pygame.time.Clock()
     run = True
     while run:
@@ -57,23 +93,20 @@ def main_game(m1, m2, l1, l2, initialTheta1, initialTheta2, initialDTheta1, init
                 pygame.quit()  
         
         clock.tick(FPS)
-        
         try:
             timetick = 1/clock.get_fps()
         except:
             timetick = 0
 
-        dTheta1 = dTheta1 + (timetick)*getTheta1Accel(m1, m2, l1, l2, theta1, theta2, dTheta1, dTheta2, g)
-        dTheta2 = dTheta2 + (timetick)*getTheta2Accel(m1, m2, l1, l2, theta1, theta2, dTheta1, dTheta2, g)
-        theta1 = theta1 + (timetick)*dTheta1
-        theta2 = theta2 + (timetick)*dTheta2
+        #print(clock.get_fps())
         
-
-        window.fill((255,255,255))
-        drawPendulums(theta1, theta2, l1, l2, (300,300), scale)
+        firstPend.calculatePts(timetick)
+        drawTrail(firstPend)
+        drawPendulums(firstPend)
+       
         pygame.display.update()
+        window.fill((255,255,255))
 
 
 
-while True:
-    main_game(1, 1, 0.75, 1, math.pi/2, math.pi, 0, -2)
+main_game()
